@@ -1,0 +1,7 @@
+node_modules
+dist
+.idea
+.DS_Store
+
+# Sources vidéo brutes (lourdes), converties dans public/videos/
+sources

@@ -1,0 +1,31 @@
+:root { color-scheme: dark; }
+body { margin: 0; background: #0b0b14; color: #eee; font: 14px/1.4 system-ui, sans-serif; }
+
+/* Piste de scroll : sa hauteur fixe la « longueur » de l'animation (ici 4 écrans) */
+#track { height: 400vh; }
+
+/* Scène épinglée plein écran */
+#stage { position: fixed; inset: 0; background: #000; overflow: hidden; }
+/* Cover : remplit tout le viewport en conservant le ratio (la résolution interne du canvas ne change pas,
+   c'est le navigateur qui met à l'échelle et recadre au centre) */
+canvas, video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+[hidden] { display: none !important; }
+
+/* Loader : voile sur la scène + spinner + progression du décodage. Visible via .visible (fondu), sinon inerte. */
+#loader { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+          background: rgba(11, 11, 20, .55); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .3s; }
+#loader.visible { opacity: 1; }
+#loader .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .2); border-top-color: #ffb340;
+                   animation: spin .8s linear infinite; }
+#loader.error .spinner { animation: none; border-color: #e5484d; }
+#loader .label { font-variant-numeric: tabular-nums; letter-spacing: .02em; text-shadow: 0 1px 2px #000; }
+#loader .pbar { width: 180px; height: 3px; background: rgba(255, 255, 255, .15); border-radius: 2px; overflow: hidden; }
+#loader .pbar i { display: block; height: 100%; width: 0; background: #ffb340; transition: width .15s; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* lil-gui : champs texte en lecture seule lisibles malgré .disable() */
+.lil-gui .lil-controller.lil-disabled { opacity: 1; }
+.lil-gui .lil-controller.lil-disabled input { color: var(--text-color); }
+
+/* Barre de progression */
+#bar { position: fixed; left: 0; bottom: 0; height: 3px; width: 0; background: #ffb340; }

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scrollmation</title>
+    <meta name="description" content="Scrollmation — vidéo pilotée par le scroll : WebCodecs, Web Worker, OffscreenCanvas." />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <!-- Piste de scroll : sa hauteur fixe la « longueur » de l'animation -->
+    <div id="track"></div>
+    <!-- Scène épinglée plein écran : le canvas (mode video-decoder) ou le <video> (mode html5-video) -->
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <video id="video" muted playsinline preload="auto" hidden></video>
+      <!-- Loader : affiché au démarrage et à chaque changement de séquence / source, jusqu'à l'événement complete -->
+      <div id="loader" role="status" aria-live="polite">
+        <div class="spinner"></div>
+        <div class="label">chargement…</div>
+        <div class="pbar"><i></i></div>
+      </div>
+    </div>
+    <div id="bar"></div>
+  </body>
+</html>

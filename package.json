@@ -1,0 +1,21 @@
+{
+  "name": "scrollmation",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Scrollmation — vidéo pilotée par le scroll : WebCodecs, Web Worker, OffscreenCanvas, comlink, Lenis.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  },
+  "dependencies": {
+    "comlink": "^4.4.2",
+    "lenis": "^1.3.26",
+    "lil-gui": "^0.21.0",
+    "mp4box": "^0.5.4"
+  }
+}
