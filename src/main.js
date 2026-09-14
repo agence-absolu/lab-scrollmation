@@ -6,6 +6,8 @@ import GUI from 'lil-gui';
 import Lenis from 'lenis';
 import { Scrollmation, hasWebCodecs } from './scrollmation.js';
 import { Sequences, Codecs } from './sequences.js';
+import { initPointage } from './pointage.js';
+import { initHotspots } from './hotspots.js';
 
 const bar = document.getElementById('bar');
 
@@ -52,6 +54,7 @@ const ui = {
   cache: '',
 };
 let sm = null;
+let lastInfo = null;                                    // dernier getInfo() du worker (frameCount, résolution…)
 
 /* ---------- Scrollmation ---------- */
 
@@ -63,7 +66,7 @@ function boot() { return booting = booting.then(doBoot); }
 
 async function doBoot() {
   const gen = ++generation;
-  await sm?.dispose(); sm = null;                       // ferme frames, démuxeur, canvas et ports comlink de la scène précédente
+  await sm?.dispose(); sm = null; lastInfo = null;      // ferme frames, démuxeur, canvas et ports comlink de la scène précédente
   ui.frame = ''; ui.memory = ''; ui.codec = ''; ui.duration = ''; ui.src = '';
   // Un canvas ne peut être transféré qu'une fois : on en recrée un neuf à chaque (re)démarrage
   const canvas = document.createElement('canvas'); canvas.id = 'canvas';
@@ -100,11 +103,13 @@ async function doBoot() {
    Lenis interpole le scroll natif (scrollTop) image par image : l'événement scroll du window reste donc
    la source unique de vérité, avec ou sans smooth scroll. */
 const maxScroll = () => document.documentElement.scrollHeight - innerHeight;
-window.addEventListener('scroll', () => {
+function readScroll() {
   ui.progress = Math.min(1, Math.max(0, scrollY / maxScroll()));
   bar.style.width = (ui.progress * 100) + '%';
   sm?.progress(ui.progress);
-}, { passive: true });
+}
+window.addEventListener('scroll', readScroll, { passive: true });
+readScroll();                                           // position restaurée par le navigateur au rechargement : pas d'événement scroll
 
 /* Lenis : smooth scroll. lerp = part du chemin parcourue à chaque frame (0.1 ≈ 60 fps → ~0,5 s pour s'arrêter). */
 const smooth = { enabled: true, lerp: 0.1, wheelMultiplier: 1 };
@@ -127,6 +132,7 @@ async function refresh() {
   try { i = await Promise.race([sm.getInfo(), new Promise(r => setTimeout(r, 1000, null))]); }
   finally { pending = false; }
   if (!i || !sm) return;
+  lastInfo = i;
   ui.src = i.src ? i.src.replace(document.baseURI, '') : '-';
   ui.viewport = `${innerWidth}×${innerHeight} ${innerWidth >= innerHeight ? 'paysage' : 'portrait'} → ${sm.matchedBreakpoint()}`;
   ui.codec = i.width ? `${i.codec || 'inconnu (<video>)'} — ${i.width}×${i.height}` : '-';
@@ -142,14 +148,14 @@ async function refresh() {
 
 /* ---------- Panneau lil-gui ---------- */
 
-const gui = new GUI({ title: 'Scrollmation', width: 340 });
+const gui = new GUI({ title: 'Scrollmation', width: 340 }).close();   // replié par défaut, la barre de titre reste cliquable
 
 const ctrl = gui.addFolder('Commandes');
 ctrl.add(ui, 'sequence', Object.keys(Sequences)).name('séquence').onChange(key => {
   ui.source = '';
   // lil-gui : options() détruit le contrôleur et en renvoie un nouveau → on le remplace et on rebranche onChange
   srcCtrl = srcCtrl.options(sourcesOf(key)).onChange(onSourceChange);
-  boot();
+  boot().then(() => { pointage.onSequenceChange(); hotspots.onSequenceChange(); });
 });
 ctrl.add(ui, 'renderType', ['video-decoder', 'html5-video']).name('rendu').onChange(boot);
 const onSourceChange = v => v ? sm.setSource(v) : boot();
@@ -174,6 +180,27 @@ state.add(ui, 'frame').name('image').listen().disable();
 state.add(ui, 'memory').name('mémoire').listen().disable();
 state.add(ui, 'status').name('état').listen().disable();
 state.add(ui, 'cache').name('Cache API').listen().disable();
+
+/* ---------- Hotspots + outil de pointage ---------- */
+
+const stage = document.getElementById('stage');
+/* État partagé : progress courant et dimensions de la séquence (pour convertir repère vidéo → écran) */
+const getState = () => ({ sequence: ui.sequence, progress: ui.progress, frameCount: lastInfo?.frameCount ?? 0, width: lastInfo?.width ?? 0, height: lastInfo?.height ?? 0 });
+
+/* Boutons trackés sur la vidéo + modale (voir hotspots.js) */
+const hotspots = initHotspots({
+  stage, getState,
+  onModal: open => {                                    // modale ouverte : on fige le scroll (Lenis et natif)
+    document.documentElement.classList.toggle('modal-open', open);
+    open ? lenis?.stop() : lenis?.start();
+  },
+});
+
+/* Outil de pointage : capture d'une trajectoire dans le repère vidéo (voir pointage.js) */
+const pointage = initPointage({
+  gui, stage, getState,
+  goTo: p => { goTo(p * maxScroll(), true); readScroll(); },   // immédiat : on resynchronise sans attendre l'événement scroll
+});
 
 setInterval(refresh, 250);                            // rafraîchit image / mémoire pendant le scroll
 boot();
