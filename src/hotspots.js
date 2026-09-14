@@ -254,7 +254,8 @@ function getModal() {
 /**
  * @param {object} o
  * @param {HTMLElement} o.stage
- * @param {() => {sequence: string, progress: number, frameCount: number, width: number, height: number}} o.getState
+ * @param {() => {sequence: string, progress: number, frameCount: number, width: number, height: number, scale?: number}} o.getState
+ *        scale : échelle CSS appliquée à l'image autour du centre de la scène (zoom), 1 par défaut
  * @param {(open: boolean) => void} [o.onModal]   appelé à l'ouverture / fermeture de la modale (ex. : figer le scroll)
  */
 export function initHotspots({ stage, getState, onModal = () => {} }) {
@@ -280,14 +281,19 @@ export function initHotspots({ stage, getState, onModal = () => {} }) {
 
   function render() {
     if (!items.length) return;
-    const { progress, frameCount, width, height } = getState();
+    const { progress, frameCount, width, height, scale = 1 } = getState();
     const ready = frameCount > 0 && width > 0;
-    const r = ready && coverRect(stage.getBoundingClientRect(), width, height);
+    const rect = stage.getBoundingClientRect();
+    const r = ready && coverRect(rect, width, height);
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;   // centre du zoom
     const t = progress * (frameCount - 1);              // image fractionnaire : interpolation fluide entre deux images
     for (const { hotspot, el } of items) {
       const p = ready ? positionAt(hotspot.keyframes, t, hotspot.from, hotspot.to) : null;
       el.classList.toggle('visible', !!p);             // fondu CSS plutôt que display:none
-      if (p) el.style.transform = `translate(${(r.x + p.x * r.w).toFixed(1)}px, ${(r.y + p.y * r.h).toFixed(1)}px)`;
+      if (p) {
+        const x = cx + (r.x + p.x * r.w - cx) * scale, y = cy + (r.y + p.y * r.h - cy) * scale;   // même zoom que l'image
+        el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      }
     }
   }
   (function loop() { render(); requestAnimationFrame(loop); })();   // le scroll (lissé par Lenis) bouge à chaque frame

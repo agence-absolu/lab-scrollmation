@@ -40,7 +40,9 @@
         <p class="hint">Scrollez pour avancer dans la séquence ↓</p>
       </div>
     </div>
-    <div class="video-stage" id="stage-dune" data-sequence="dune">
+    <!-- data-one-way : lecture uniquement vers l'avant (le marcheur ne recule jamais) ; data-zoom : échelle 1.2 → 1 le long
+         de la séquence. Voir landing.js -->
+    <div class="video-stage" id="stage-dune" data-sequence="dune" data-one-way data-zoom="1.2">
       <canvas></canvas>
       <video muted playsinline preload="auto" hidden></video>
       <div class="stage-loader"><i></i></div>

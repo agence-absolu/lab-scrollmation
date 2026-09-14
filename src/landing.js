@@ -17,9 +17,12 @@ import Lenis from 'lenis';
 import { Scrollmation, warmCache } from './scrollmation.js';
 import { initHotspots } from './hotspots.js';
 
-gsap.registerPlugin(ScrollTrigger);
-history.scrollRestoration = 'manual';                   // on repart toujours du haut : loader puis première scène
+// On repart toujours du haut : loader puis première scène. À poser AVANT l'enregistrement du plugin :
+// ScrollTrigger mémorise la valeur de scrollRestoration à ce moment-là et la rétablit à chaque refresh().
+history.scrollRestoration = 'manual';
 scrollTo(0, 0);
+gsap.registerPlugin(ScrollTrigger);
+ScrollTrigger.clearScrollMemory('manual');
 
 /* ---------- Lenis ↔ ScrollTrigger ---------- */
 
@@ -55,10 +58,19 @@ class VideoScene {
     this.caption = stage.querySelector('.stage-caption');
     this.loaderBar = stage.querySelector('.stage-loader i');
     this.sm = null; this.info = null; this.progress = 0; this.token = null;
+    // data-one-way : la séquence ne se lit que vers l'avant. En remontant, l'image reste figée sur la dernière
+    // affichée ; si on remonte jusqu'à sortir de la scène (invisible), elle est remise à 0 et rejouée à la descente.
+    // Seule l'image est verrouillée : zoom, titre et fondus continuent de suivre le scroll (il se passe toujours quelque chose).
+    this.oneWay = stage.hasAttribute('data-one-way');
+    this.reached = 0;                                   // progress maximal atteint depuis la dernière apparition (one-way)
+    // data-zoom : échelle de l'image à progress 0 (ex. 1.2), ramenée à 1 à progress 1. Suit le scroll brut, pas le
+    // progress effectif : en one-way, l'image est figée en remontant mais le zoom continue de bouger
+    this.zoom = +stage.dataset.zoom || 1;
+    this.scale = this.zoom;
     this.onEvent = () => {};                            // écouté par le loader de page pour la première scène
     initHotspots({
       stage, onModal,
-      getState: () => ({ sequence: this.key, progress: this.progress, frameCount: this.info?.frameCount ?? 0, width: this.info?.width ?? 0, height: this.info?.height ?? 0 }),
+      getState: () => ({ sequence: this.key, progress: this.progress, scale: this.scale, frameCount: this.info?.frameCount ?? 0, width: this.info?.width ?? 0, height: this.info?.height ?? 0 }),
     });
     this.triggers();
   }
@@ -96,7 +108,23 @@ class VideoScene {
     await sm?.dispose();
   }
 
-  setProgress(p) { this.progress = p; this.sm?.progress(p); }
+  /** Progress effectivement affiché : identique au scroll, sauf en one-way où il ne peut que croître. */
+  effective(p) {
+    if (!this.oneWay) return p;
+    if (p > this.reached) this.reached = p;
+    return this.reached;
+  }
+  setProgress(p) {
+    this.progress = this.effective(p);
+    this.sm?.progress(this.progress);
+    if (this.zoom !== 1) {                              // zoom le long de la timeline (canvas ou <video> de repli)
+      this.scale = this.zoom + (1 - this.zoom) * p;     // p = scroll brut (voir constructeur)
+      const t = `scale(${this.scale.toFixed(4)})`;
+      this.canvas.style.transform = t; this.video.style.transform = t;
+    }
+  }
+  /** One-way : retour invisible au début (la scène est masquée quand on l'appelle). */
+  rewind() { if (this.oneWay) { this.reached = 0; this.progress = 0; this.sm?.progress(0); } }
 
   triggers() {
     const { track, stage, caption } = this;
@@ -113,12 +141,17 @@ class VideoScene {
       stage.style.opacity = clamp01(Math.min(p / screen, (1 - p) / screen));
       stage.style.visibility = self.isActive ? 'visible' : 'hidden';
     };
-    ScrollTrigger.create({ trigger: track, start: 'top bottom', end: 'bottom top', onUpdate: fade, onToggle: fade, onRefresh: fade });
+    ScrollTrigger.create({
+      trigger: track, start: 'top bottom', end: 'bottom top', onUpdate: fade, onToggle: fade, onRefresh: fade,
+      onLeaveBack: () => this.rewind(),                 // remonté au-dessus de la scène : elle repartira du début
+    });
     // 3. Lecture : la séquence se joue dès que la scène apparaît et jusqu'à sa disparition (fondus compris),
     //    pour ne jamais montrer une vidéo à l'arrêt. Une piste en haut de page n'a pas de fondu entrant : on part du haut.
+    // Le verrou one-way ne concerne que l'image vidéo (et ses hotspots) : titre, zoom, fondus suivent le scroll brut
     const play = self => {
       this.setProgress(self.progress);
-      if (caption) { const k = clamp01((self.progress - .25) / .3); caption.style.opacity = 1 - k; caption.style.transform = `translateY(${-40 * k}px)`; }
+      const p = self.progress;
+      if (caption) { const k = clamp01((p - .25) / .3); caption.style.opacity = 1 - k; caption.style.transform = `translateY(${-40 * k}px)`; }
     };
     ScrollTrigger.create({
       trigger: track, start: () => track.offsetTop <= innerHeight ? 'top top' : 'top bottom', end: 'bottom top',
