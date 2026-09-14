@@ -1,0 +1,45 @@
+/* Hotspots (boutons trackés sur la vidéo) et modale — partagés entre les pages séquence et la landing */
+
+/* Hotspots : bouton ancré sur un point de la vidéo (transform posé en JS), apparition en fondu */
+.hotspots { position: absolute; inset: 0; pointer-events: none; }
+.hotspot { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: 0; margin: 0;
+           border: 0; background: none; color: #fff; font: inherit; cursor: pointer; pointer-events: auto;
+           opacity: 0; visibility: hidden; transition: opacity .4s, visibility .4s; }
+.hotspot { translate: 0 -50%; }                          /* le point d'ancrage (x, y) est le centre du rond, pas le coin haut-gauche du bouton */
+.hotspot.visible { opacity: 1; visibility: visible; }
+.hotspot-dot { width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #ffb340; box-shadow: 0 0 0 2px #fff;
+               position: relative; }
+.hotspot-dot::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid #ffb340; opacity: 0;
+                       animation: pulse 2s ease-out infinite; }
+.hotspot-label { padding: 6px 12px; border-radius: 999px; background: rgba(11, 11, 20, .75); backdrop-filter: blur(4px);
+                 border: 1px solid rgba(255, 255, 255, .25); font-size: 14px; white-space: nowrap; transition: background .2s; }
+.hotspot:hover .hotspot-label, .hotspot:focus-visible .hotspot-label { background: #ffb340; color: #0b0b14; border-color: #ffb340; }
+.hotspot:focus-visible { outline: none; }
+@keyframes pulse { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.8); opacity: 0; } }
+
+/* Modale : <dialog> centrée, overlay foncé ; contenu généré par hotspots.js (gabarits info / product) */
+#modal { border: 0; padding: 0; background: none; color: #eee; max-width: min(560px, calc(100vw - 32px)); }
+#modal::backdrop { background: rgba(0, 0, 0, .7); backdrop-filter: blur(3px); }
+.modal-card { position: relative; padding: 28px 32px; border-radius: 12px; background: #15151f; border: 1px solid rgba(255, 255, 255, .1);
+              box-shadow: 0 20px 60px rgba(0, 0, 0, .6); overflow: hidden; }
+.modal-close { position: absolute; top: 10px; right: 12px; width: 36px; height: 36px; border: 0; border-radius: 50%;
+               background: rgba(0, 0, 0, .35); color: #ddd; font: 24px/1 system-ui; cursor: pointer; z-index: 1; }
+.modal-close:hover { background: rgba(255, 255, 255, .15); color: #fff; }
+.modal-tag { display: inline-block; margin-bottom: 10px; padding: 3px 10px; border-radius: 999px; font-size: 11px; letter-spacing: .08em;
+             text-transform: uppercase; background: rgba(255, 179, 64, .15); color: #ffb340; }
+.modal-title { margin: 0 32px 4px 0; font-size: 22px; }
+.modal-subtitle { margin: 0 0 16px; color: #ffb340; }
+.modal-body p { margin: 0 0 12px; line-height: 1.55; color: #ccc; }
+.modal-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 16px 0 0; padding-top: 14px;
+               border-top: 1px solid rgba(255, 255, 255, .1); }
+.modal-facts dt { color: #888; }
+.modal-facts dd { margin: 0; }
+/* Gabarit produit : visuel pleine largeur en tête, liste de caractéristiques, bouton d'action */
+.modal-product { padding-top: 0; }
+.modal-visual { height: 180px; margin: 0 -32px 20px; }
+.modal-features { margin: 0 0 4px; padding-left: 18px; color: #ccc; line-height: 1.6; }
+.modal-cta { display: inline-block; margin-top: 20px; padding: 10px 20px; border-radius: 999px; background: #ffb340; color: #0b0b14;
+             font-weight: 600; text-decoration: none; }
+.modal-cta:hover { background: #ffc466; }
+html.modal-open { overflow: hidden; }                   /* le scroll (donc la vidéo) reste figé derrière la modale */
+

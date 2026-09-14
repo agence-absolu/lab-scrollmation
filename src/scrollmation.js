@@ -32,6 +32,47 @@ function getRemoteClass() {
 /** Les URL relatives du worker se résolvent contre le script du worker : on absolutise ici, côté page. */
 const absolute = src => new URL(src, document.baseURI).href;
 
+/* ---------- Sélection de la variante ---------- */
+
+/** Media query courante parmi celles déclarées par la séquence (diagnostic). */
+function matchedBreakpoint(key) {
+  const v = Sequences[key].videos.find(({ media }) => media && matchMedia(media).matches);
+  if (v) return v.media;
+  return Sequences[key].videos.some(({ media }) => media) ? 'aucun breakpoint' : 'variante unique';
+}
+
+/** Variante retenue pour `key` : codec lisible « probably » (canPlayType) ET media query correspondante. */
+function selectSource(key, video) {
+  const playable = Sequences[key].videos.filter(({ type }) => video.canPlayType(type) === 'probably');
+  let found = playable.find(({ media }) => !media || matchMedia(media).matches);
+  let how = matchedBreakpoint(key);
+  if (!found && playable.length) {
+    // Aucune media query ne correspond (trou entre deux breakpoints) : largeur d'encodage la plus proche du viewport
+    const width = src => +(src.match(/(\d+)\D*\.mp4$/)?.[1] ?? 0);
+    const codec = playable[0].type;
+    found = playable.filter(v => v.type === codec).sort((a, b) => Math.abs(width(a.src) - innerWidth) - Math.abs(width(b.src) - innerWidth))[0];
+    how = 'aucun breakpoint → repli largeur la plus proche';
+  }
+  return { src: found ? absolute(found.src) : '', how };
+}
+
+const CACHE_KEY = 'scrollmation-v1';
+
+/**
+ * Préchauffe la Cache API avec les mp4 des séquences données (variante du viewport courant), en tâche de fond :
+ * le réseau ne sera plus sur le chemin critique quand la scène devra décoder. Même clé et même URL que le worker.
+ */
+export async function warmCache(keys, video) {
+  if (!self.caches) return;
+  const cache = await caches.open(CACHE_KEY);
+  for (const key of keys) {
+    const { src } = selectSource(key, video);
+    if (!src || await cache.match(src)) continue;
+    try { await cache.add(src); console.log(`[scrollmation] cache préchauffé : ${key}`); }
+    catch (e) { console.warn(`[scrollmation] préchauffage impossible : ${key}`, e); }
+  }
+}
+
 /* ---------- Repli <video>.currentTime ---------- */
 
 class HtmlVideoScrollmation {
@@ -104,32 +145,19 @@ export class Scrollmation {
     this.key = key; this.canvas = canvas; this.video = video; this.onEvent = onEvent;
     this.renderType = renderType ?? (hasWebCodecs && !isAppleMobile ? 'video-decoder' : 'html5-video');
     this.remote = null;
-    this.cacheKey = 'scrollmation-v1';
+    this.cacheKey = CACHE_KEY;
     this.mediaQueries = [];
   }
 
   /** Première variante dont le codec est lisible « probably » ET dont la media query correspond. */
   pickSource() {
-    const playable = Sequences[this.key].videos.filter(({ type }) => this.video.canPlayType(type) === 'probably');
-    let found = playable.find(({ media }) => !media || matchMedia(media).matches);
-    let how = this.matchedBreakpoint();
-    if (!found && playable.length) {
-      // Aucune media query ne correspond (trou entre deux breakpoints) : largeur d'encodage la plus proche du viewport
-      const width = src => +(src.match(/(\d+)\D*\.mp4$/)?.[1] ?? 0);
-      const codec = playable[0].type;
-      found = playable.filter(v => v.type === codec).sort((a, b) => Math.abs(width(a.src) - innerWidth) - Math.abs(width(b.src) - innerWidth))[0];
-      how = 'aucun breakpoint → repli largeur la plus proche';
-    }
-    console.log(`[scrollmation] ${this.key} : viewport ${innerWidth}×${innerHeight} → ${how} → ${found?.src ?? 'AUCUNE SOURCE'}`);
-    return found ? absolute(found.src) : '';
+    const { src, how } = selectSource(this.key, this.video);
+    console.log(`[scrollmation] ${this.key} : viewport ${innerWidth}×${innerHeight} → ${how} → ${src || 'AUCUNE SOURCE'}`);
+    return src;
   }
 
   /** Media query courante parmi celles déclarées par la séquence (diagnostic). */
-  matchedBreakpoint() {
-    const v = Sequences[this.key].videos.find(({ media }) => media && matchMedia(media).matches);
-    if (v) return v.media;
-    return Sequences[this.key].videos.some(({ media }) => media) ? 'aucun breakpoint' : 'variante unique';
-  }
+  matchedBreakpoint() { return matchedBreakpoint(this.key); }
 
   async init() {
     const videoSrc = this.pickSource();

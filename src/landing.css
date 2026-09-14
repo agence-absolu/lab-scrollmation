@@ -1,0 +1,96 @@
+/* Landing : scènes vidéo fixes plein écran + sections de contenu qui scrollent par-dessus */
+
+@import './hotspots.css';
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0b14;
+  --bg-2: #12121c;
+  --text: #ececf1;
+  --muted: #9a9aab;
+  --accent: #ffb340;
+  --track: 300vh;                                         /* longueur de scroll d'une séquence (fondus compris, voir landing.js) */
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: auto; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; overflow-x: hidden; }
+[hidden] { display: none !important; }
+h1, h2, h3, h4 { margin: 0; font-weight: 650; letter-spacing: -.02em; line-height: 1.05; }
+h1 { font-size: clamp(40px, 7vw, 96px); }
+h2 { font-size: clamp(32px, 5vw, 64px); }
+.eyebrow { margin: 0 0 16px; color: var(--accent); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
+.brand { font-weight: 700; letter-spacing: -.02em; color: #fff; text-decoration: none; }
+.brand span { color: var(--accent); }
+
+/* ---------- Loader de page ---------- */
+#page-loader { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: var(--bg); }
+#page-loader.done { pointer-events: none; }
+.pl-inner { display: grid; justify-items: center; gap: 28px; }
+.pl-brand { font-size: 22px; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; }
+.pl-brand span { color: var(--accent); }
+.pl-ring { position: relative; width: 132px; height: 132px; }
+.pl-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.pl-ring circle { fill: none; stroke-width: 2.5; }
+.pl-track { stroke: rgba(255, 255, 255, .1); }
+.pl-arc { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 289; stroke-dashoffset: 289; transition: stroke-dashoffset .2s; }   /* 2πr ≈ 289 */
+.pl-percent { position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; font-weight: 300; font-variant-numeric: tabular-nums; }
+.pl-percent::after { content: '%'; font-size: 14px; margin-left: 2px; color: var(--muted); align-self: center; }
+.pl-label { color: var(--muted); font-size: 13px; letter-spacing: .08em; }
+
+/* ---------- Header ---------- */
+#header { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
+          padding: 16px 28px; background: linear-gradient(rgba(11, 11, 20, .7), rgba(11, 11, 20, 0)); }
+#header nav { display: flex; align-items: center; gap: 22px; }
+#header nav a { color: #ddd; text-decoration: none; font-size: 14px; opacity: .85; transition: opacity .15s; }
+#header nav a:hover { opacity: 1; }
+#header nav .pill { padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25); }
+#header nav .pill:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+/* ---------- Scènes vidéo (fixes) ---------- */
+.video-stage { position: fixed; inset: 0; z-index: 1; background: #000; overflow: hidden; opacity: 0; visibility: hidden; }
+.video-stage canvas, .video-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+/* Chargement de la scène (retour arrière après libération) : barre fine en haut, pilotée par landing.js */
+.stage-loader { position: absolute; top: 0; left: 0; right: 0; height: 2px; opacity: 0; transition: opacity .3s; }
+.stage-loader i { display: block; height: 100%; width: 0; background: var(--accent); }
+.video-stage.loading .stage-loader { opacity: 1; }
+/* Titre sur la scène : fondu et léger déplacement pilotés par ScrollTrigger */
+.stage-caption { position: absolute; left: 0; right: 0; bottom: 12vh; padding: 0 28px; pointer-events: none; text-shadow: 0 2px 20px rgba(0, 0, 0, .5); }
+.stage-caption .hint { margin-top: 20px; color: rgba(255, 255, 255, .7); font-size: 14px; }
+.stage-caption .eyebrow { margin-bottom: 10px; }
+@media (min-width: 900px) { .stage-caption { padding: 0 64px; } }
+
+/* ---------- Pistes de scroll des séquences ---------- */
+main { position: relative; }
+.video-track { height: var(--track); pointer-events: none; }           /* vide : laisse voir la scène fixe dessous, le scroll pilote la lecture */
+#dune { --track: 450vh; }                                               /* séquence plus longue à parcourir (lecture plus lente au scroll) */
+
+/* ---------- Sections de contenu (passent au-dessus des scènes) ---------- */
+/* Pas de fond : c'est le fondu sortant de la scène (vers le fond de page) qui fait le fond de la section */
+.content { position: relative; z-index: 2; padding: 20vh 0; }
+.content .lead { max-width: 640px; margin: 24px 0 0; color: var(--muted); font-size: 18px; line-height: 1.6; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 64px; }
+.cards-2 { grid-template-columns: repeat(2, 1fr); }
+.card { margin: 0; border-radius: 14px; overflow: hidden; background: var(--bg-2); border: 1px solid rgba(255, 255, 255, .06); }
+.card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.card figcaption { display: grid; gap: 6px; padding: 18px 20px 22px; }
+.card figcaption span { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 64px; padding-top: 40px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.stats b { display: block; font-size: 40px; font-weight: 600; letter-spacing: -.03em; color: #fff; }
+.stats span { color: var(--muted); font-size: 14px; }
+@media (max-width: 900px) { .cards, .cards-2 { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* Apparition des blocs de contenu (GSAP) : état initial, l'animation prend le relais */
+.reveal { opacity: 0; transform: translateY(28px); }
+
+/* ---------- Footer ---------- */
+#footer { position: relative; z-index: 2; padding: 64px 0 32px; background: var(--bg-2); border-top: 1px solid rgba(255, 255, 255, .06); }
+#footer .cols { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; }
+#footer h4 { margin-bottom: 12px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+#footer a { display: block; color: #ddd; text-decoration: none; margin-bottom: 8px; }
+#footer a:hover { color: var(--accent); }
+#footer p { color: var(--muted); max-width: 360px; }
+#footer .copyright { margin: 48px 0 0; font-size: 13px; }
+@media (max-width: 700px) { #footer .cols { grid-template-columns: 1fr; } }
+
+html.modal-open { overflow: hidden; }

@@ -4,32 +4,124 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scrollmation</title>
-    <meta name="description" content="Scrollmation — vidéo pilotée par le scroll : WebCodecs, Web Worker, OffscreenCanvas." />
-    <script type="module" src="/src/main.js"></script>
+    <meta name="description" content="Scrollmation — vidéo pilotée par le scroll : WebCodecs, Web Worker, OffscreenCanvas, GSAP ScrollTrigger." />
+    <script type="module" src="/src/landing.js"></script>
   </head>
-  <!-- data-sequence : séquence chargée par cette page (clé de sequences.js).
-       Pour le moment, index.html = pano-mountain ; elle deviendra un enchaînement de séquences entrecoupées de contenu DOM. -->
-  <body data-sequence="pano-mountain">
-    <!-- Menu de navigation entre les pages (le lien de la séquence courante est marqué .active par main.js) -->
-    <nav id="menu" aria-label="Séquences">
-      <a href="./pano-mountain.html" data-sequence="pano-mountain">Pano mountain</a>
-      <a href="./dune.html" data-sequence="dune">Dune</a>
-    </nav>
-    <!-- Piste de scroll : sa hauteur fixe la « longueur » de l'animation -->
-    <div id="track"></div>
-    <!-- Scène épinglée plein écran : le canvas (mode video-decoder) ou le <video> (mode html5-video) -->
-    <div id="stage">
-      <canvas id="canvas"></canvas>
-      <video id="video" muted playsinline preload="auto" hidden></video>
-      <!-- Loader : affiché au démarrage et à chaque changement de séquence / source, jusqu'à l'événement complete -->
-      <div id="loader" role="status" aria-live="polite">
-        <div class="spinner"></div>
-        <div class="label">chargement…</div>
-        <div class="pbar"><i></i></div>
+  <!-- Landing : enchaînement de séquences vidéo plein écran (fixes, fondu) entrecoupées de sections de contenu
+       qui scrollent par-dessus. Orchestration GSAP + ScrollTrigger dans landing.js. -->
+  <body>
+    <!-- Loader de page : masqué une fois la première séquence décodée -->
+    <div id="page-loader" role="status" aria-live="polite">
+      <div class="pl-inner">
+        <div class="pl-brand">Scroll<span>mation</span></div>
+        <div class="pl-ring"><svg viewBox="0 0 100 100"><circle class="pl-track" cx="50" cy="50" r="46" /><circle class="pl-arc" cx="50" cy="50" r="46" /></svg><span class="pl-percent">0</span></div>
+        <div class="pl-label">chargement de la séquence…</div>
       </div>
     </div>
-    <div id="bar"></div>
-    <!-- Modale des hotspots : <dialog> natif (centrage, overlay ::backdrop, Échap, focus) — contenu injecté par hotspots.js -->
+
+    <header id="header">
+      <a class="brand" href="./">Scroll<span>mation</span></a>
+      <nav aria-label="Navigation">
+        <a href="#pano">Pano</a>
+        <a href="#dune">Dune</a>
+        <a href="#about">À propos</a>
+        <a class="pill" href="./pano-mountain.html">Démos ↗</a>
+      </nav>
+    </header>
+
+    <!-- Scènes vidéo : fixes, plein écran, sous les sections de contenu (z-index). Une par séquence. -->
+    <div class="video-stage" id="stage-pano" data-sequence="pano-mountain">
+      <canvas></canvas>
+      <video muted playsinline preload="auto" hidden></video>
+      <div class="stage-loader"><i></i></div>
+      <div class="stage-caption">
+        <p class="eyebrow">Séquence 01</p>
+        <h1>Alabama Hills,<br>au pied de la Sierra</h1>
+        <p class="hint">Scrollez pour avancer dans la séquence ↓</p>
+      </div>
+    </div>
+    <div class="video-stage" id="stage-dune" data-sequence="dune">
+      <canvas></canvas>
+      <video muted playsinline preload="auto" hidden></video>
+      <div class="stage-loader"><i></i></div>
+      <div class="stage-caption">
+        <p class="eyebrow">Séquence 02</p>
+        <h2>Le grand erg,<br>à la lumière rasante</h2>
+      </div>
+    </div>
+
+    <main>
+      <!-- Section 1 : piste de scroll de la séquence pano (la scène fixe joue pendant que cette piste défile) -->
+      <section class="video-track" id="pano" data-stage="stage-pano"></section>
+
+      <!-- Section 2 : contenu -->
+      <section class="content" id="about">
+        <div class="wrap">
+          <p class="eyebrow reveal">Comment ça marche</p>
+          <h2 class="reveal">La vidéo devient une timeline<br>que l'on parcourt au doigt.</h2>
+          <p class="lead reveal">Chaque image de la séquence est décodée une fois, en tâche de fond, puis dessinée à la demande :
+            le scroll n'est plus une lecture mais une position. Aucune saccade, aucun rattrapage, une image pour chaque pixel défilé.</p>
+          <div class="cards">
+            <figure class="card reveal"><img src="images/pano-1.jpg" alt="Randonneuse bras ouverts devant la Sierra Nevada" loading="lazy" />
+              <figcaption><strong>WebCodecs</strong><span>Décodage matériel dans un worker, 420 images en moins d'une seconde.</span></figcaption></figure>
+            <figure class="card reveal"><img src="images/pano-2.jpg" alt="Rochers granitiques des Alabama Hills" loading="lazy" />
+              <figcaption><strong>OffscreenCanvas</strong><span>Le worker dessine directement, le thread principal ne fait que scroller.</span></figcaption></figure>
+            <figure class="card reveal"><img src="images/pano-3.jpg" alt="Sommets enneigés au-dessus des rochers" loading="lazy" />
+              <figcaption><strong>Hotspots</strong><span>Des boutons DOM suivent un point de l'image, interpolés entre keyframes.</span></figcaption></figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3 : piste de scroll de la séquence dune -->
+      <section class="video-track" id="dune" data-stage="stage-dune"></section>
+
+      <!-- Section 4 : contenu -->
+      <section class="content" id="details">
+        <div class="wrap">
+          <p class="eyebrow reveal">Sous le capot</p>
+          <h2 class="reveal">Léger pour la page,<br>lourd pour la carte graphique.</h2>
+          <p class="lead reveal">Le fichier mp4 est mis en cache, la mémoire est rendue à chaque changement de séquence,
+            et le décodeur bascule tout seul en logiciel si le matériel refuse. Le reste, c'est du scroll.</p>
+          <div class="cards cards-2">
+            <figure class="card reveal"><img src="images/dune-2.jpg" alt="Silhouette d'un marcheur sur une crête de dune" loading="lazy" />
+              <figcaption><strong>Trajectoires</strong><span>Un outil de pointage intégré capture les keyframes clic par clic, dans le repère de la vidéo.</span></figcaption></figure>
+            <figure class="card reveal"><img src="images/dune-3.jpg" alt="Dunes au coucher du soleil" loading="lazy" />
+              <figcaption><strong>Fondu et sticky</strong><span>GSAP ScrollTrigger orchestre les scènes fixes, les fondus et l'apparition des contenus.</span></figcaption></figure>
+          </div>
+          <div class="stats reveal">
+            <div><b>2</b><span>séquences</span></div>
+            <div><b>817</b><span>images décodées</span></div>
+            <div><b>&lt; 1 s</b><span>de décodage matériel</span></div>
+            <div><b>0</b><span>image dessinée par le thread principal</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer id="footer">
+      <div class="wrap">
+        <div class="cols">
+          <div>
+            <div class="brand">Scroll<span>mation</span></div>
+            <p>Démonstration technique du lab Absolu — vidéo pilotée par le scroll.</p>
+          </div>
+          <div>
+            <h4>Démos</h4>
+            <a href="./pano-mountain.html">Pano mountain</a>
+            <a href="./dune.html">Dune</a>
+          </div>
+          <div>
+            <h4>Technos</h4>
+            <a href="https://developer.mozilla.org/docs/Web/API/WebCodecs_API" target="_blank" rel="noopener">WebCodecs</a>
+            <a href="https://gsap.com/docs/v3/Plugins/ScrollTrigger/" target="_blank" rel="noopener">GSAP ScrollTrigger</a>
+            <a href="https://lenis.darkroom.engineering/" target="_blank" rel="noopener">Lenis</a>
+          </div>
+        </div>
+        <p class="copyright">© 2026 Agence Absolu — lab.agence-absolu.com</p>
+      </div>
+    </footer>
+
+    <!-- Modale des hotspots : <dialog> natif, contenu injecté par hotspots.js -->
     <dialog id="modal" aria-labelledby="modal-title">
       <article class="modal-card"></article>
     </dialog>

@@ -230,6 +230,27 @@ function modalHTML(m) {
     ${m.cta ? `<a class="modal-cta" href="${esc(m.cta.href)}">${esc(m.cta.label)}</a>` : ''}`;
 }
 
+/* La <dialog id="modal"> est unique dans la page et partagée par toutes les scènes : initialisée une seule fois. */
+let modalCtl = null;
+function getModal() {
+  if (modalCtl) return modalCtl;
+  const modal = document.getElementById('modal');
+  const card = modal.querySelector('.modal-card');
+  let onModal = () => {};
+  modal.addEventListener('close', () => onModal(false));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.close(); });   // clic sur l'overlay (::backdrop = le dialog lui-même)
+  return modalCtl = {
+    open(m, cb) {
+      onModal = cb;
+      card.innerHTML = modalHTML(m);
+      card.className = `modal-card modal-${m.kind ?? 'info'}`;
+      card.querySelector('.modal-close').addEventListener('click', () => modal.close());
+      modal.showModal();
+      onModal(true);
+    },
+  };
+}
+
 /**
  * @param {object} o
  * @param {HTMLElement} o.stage
@@ -237,20 +258,11 @@ function modalHTML(m) {
  * @param {(open: boolean) => void} [o.onModal]   appelé à l'ouverture / fermeture de la modale (ex. : figer le scroll)
  */
 export function initHotspots({ stage, getState, onModal = () => {} }) {
-  const layer = document.createElement('div'); layer.id = 'hotspots'; stage.append(layer);
-  const modal = document.getElementById('modal');
-  const card = modal.querySelector('.modal-card');
+  const layer = document.createElement('div'); layer.className = 'hotspots'; stage.append(layer);
+  const modal = getModal();
   let items = [];                                     // [{ hotspot, el }] de la séquence courante
 
-  function open(h) {
-    card.innerHTML = modalHTML(h.modal);
-    card.className = `modal-card modal-${h.modal.kind ?? 'info'}`;
-    card.querySelector('.modal-close').addEventListener('click', () => modal.close());
-    modal.showModal();
-    onModal(true);
-  }
-  modal.addEventListener('close', () => onModal(false));
-  modal.addEventListener('click', e => { if (e.target === modal) modal.close(); });   // clic sur l'overlay (::backdrop = le dialog lui-même)
+  const open = h => modal.open(h.modal, onModal);
 
   /* ---------- Suivi ---------- */
 

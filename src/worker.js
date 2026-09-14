@@ -62,6 +62,7 @@ class RemoteScrollmation {
     this.width = 0; this.height = 0;      // résolution codée
     this.lastProgress = 0;
     this.lastDrawn = -1;
+    this.rafPending = false;
     this.version = 0;                     // incrémenté à chaque reset : invalide les callbacks en vol
     this.load = null;                     // { mp4, decoder, trackId, nbSamples, watchdog } du chargement en cours (libéré par releaseLoad)
     this.accel = 'prefer-hardware';       // décodeur matériel d'abord ; repli 'prefer-software' automatique (voir fallback)
@@ -112,8 +113,8 @@ class RemoteScrollmation {
         this.decoded = received + 1;
         if (received === 0) { const f0 = this.frames[0]; this.log(`première VideoFrame : ${f0.displayWidth}×${f0.displayHeight} ${f0.format}, ${(f0.allocationSize() / 1048576).toFixed(1)} Mo — file d'attente décodeur : ${decoder.decodeQueueSize}`); }
         else if (received % 30 === 0) this.log(`image ${received}/${this.frames.length - 1} décodée`);
-        if (received === 0) this.progress(this.lastProgress);          // première image : on remplace le poster
-        else if (this.lastProgress && received === this.frameIndex()) this.progress(this.lastProgress);
+        // Tant que l'image visée n'est pas décodée, chaque nouvelle image rapproche l'affichage de la cible (voir progress)
+        if (received <= this.frameIndex()) this.progress(this.lastProgress);
         if (received === this.frames.length - 1) {                     // dernière image
           this.complete = true; this.loading = false;
           this.releaseLoad();                                          // démuxeur + décodeur : plus rien à en tirer
@@ -215,20 +216,24 @@ class RemoteScrollmation {
   /* ---------- Rendu ---------- */
 
   frameIndex() { return Math.floor((this.frames.length - 1) * this.lastProgress); }
+  /** Image à dessiner : celle visée, ou à défaut la dernière décodée avant elle (le décodage est séquentiel) — jamais d'écran noir. */
+  drawableIndex() { return Math.min(this.frameIndex(), this.decoded - 1); }
 
   progress(p) {
     this.lastProgress = Math.min(1, Math.max(0, p));
-    if (!this.frames[this.frameIndex()] || !this.canvasCtx) return;
+    if (this.drawableIndex() < 0 || !this.canvasCtx || this.rafPending) return;
+    this.rafPending = true;                             // un seul dessin par frame, quel que soit le nombre d'appels
     requestAnimationFrame(() => {                       // rAF existe aussi dans un worker
+      this.rafPending = false;
       // Relu ici : entre l'appel et le rAF, un updateSrc()/dispose() a pu fermer la frame (drawImage lèverait)
-      const f = this.frames[this.frameIndex()];
+      const i = this.drawableIndex();
+      const f = this.frames[i];
       if (!f || !this.canvasCtx) return;
       const c = this.canvasCtx.canvas;
       if (c.width !== f.displayWidth || c.height !== f.displayHeight) { c.width = f.displayWidth; c.height = f.displayHeight; }
       this.canvasCtx.clearRect(0, 0, c.width, c.height);
       this.canvasCtx.drawImage(f, 0, 0, c.width, c.height);
-      const i = this.frameIndex();
-      if (i !== this.lastDrawn) { this.log(`progress ${this.lastProgress.toFixed(3)} → drawImage(frames[${i}])`); this.lastDrawn = i; }
+      if (i !== this.lastDrawn) { this.log(`progress ${this.lastProgress.toFixed(3)} → drawImage(frames[${i}])${i < this.frameIndex() ? ` (cible ${this.frameIndex()} pas encore décodée)` : ''}`); this.lastDrawn = i; }
       this.emit({ type: 'frame', index: i, progress: this.lastProgress });
     });
   }
