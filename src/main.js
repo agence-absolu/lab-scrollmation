@@ -47,6 +47,7 @@ const ui = {
   viewport: '',
   layout: '',
   worker: '',
+  decoder: '',
   src: '',
   codec: '',
   duration: '',
@@ -88,8 +89,9 @@ async function doBoot() {
       if (ev.type === 'start')    { ui.status = 'chargement…'; showLoader('chargement…'); }   // aussi émis par updateSrc()
       if (ev.type === 'cache')    ui.cache = ev.hit ? 'hit' : 'miss → réseau';
       if (ev.type === 'ready')    { ui.status = `${ev.codec} ${ev.width}×${ev.height} — décodage…`; showLoader(`décodage… 0 / ${ev.frames}`); }
+      if (ev.type === 'fallback') ui.status = 'repli logiciel : ' + ev.reason;
       if (ev.type === 'complete') { ui.status = ev.duration ? `video prêt — ${ev.duration.toFixed(2)} s en ${ev.ms.toFixed(0)} ms`
-                                                            : `prêt — ${ev.frames} images en ${ev.ms.toFixed(0)} ms`; hideLoader(); }
+                                                            : `prêt — ${ev.frames} images en ${ev.ms.toFixed(0)} ms (${ev.accel === 'prefer-hardware' ? 'matériel' : 'logiciel'})`; hideLoader(); }
       if (ev.type === 'error')    { ui.status = 'erreur : ' + ev.message; showLoader('erreur : ' + ev.message, 0, true); }
       refresh();
     },
@@ -138,6 +140,7 @@ async function refresh() {
   ui.src = i.src ? i.src.replace(document.baseURI, '') : '-';
   ui.viewport = `${innerWidth}×${innerHeight} ${innerWidth >= innerHeight ? 'paysage' : 'portrait'} → ${sm.matchedBreakpoint()}`;
   ui.codec = i.width ? `${i.codec || 'inconnu (<video>)'} — ${i.width}×${i.height}` : '-';
+  ui.decoder = i.accel ? (i.accel === 'prefer-hardware' ? 'matériel (WebCodecs)' : 'logiciel (repli)') : '<video>';
   ui.duration = i.duration ? `${i.duration.toFixed(2)} s — ${i.fps ? i.fps.toFixed(2) + ' img/s natives' : 'fps inconnu (<video>)'}` : '-';
   ui.frame = `${i.frameIndex} / ${Math.max(0, i.frameCount - 1)}`;
   // Progression du décodage. L'événement complete et cette réponse arrivent par deux ports différents :
@@ -175,6 +178,7 @@ const state = gui.addFolder('État (worker)');
 state.add(ui, 'viewport').name('viewport').listen().disable();
 state.add(ui, 'layout').name('gabarit').listen().disable();
 state.add(ui, 'worker').name('worker').listen().disable();
+state.add(ui, 'decoder').name('décodeur').listen().disable();
 state.add(ui, 'src').name('fichier').listen().disable();
 state.add(ui, 'codec').name('codec / résolution').listen().disable();
 state.add(ui, 'duration').name('durée / fps').listen().disable();

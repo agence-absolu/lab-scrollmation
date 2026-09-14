@@ -63,7 +63,8 @@ class RemoteScrollmation {
     this.lastProgress = 0;
     this.lastDrawn = -1;
     this.version = 0;                     // incrémenté à chaque reset : invalide les callbacks en vol
-    this.load = null;                     // { mp4, decoder, trackId, nbSamples } du chargement en cours (libéré par releaseLoad)
+    this.load = null;                     // { mp4, decoder, trackId, nbSamples, watchdog } du chargement en cours (libéré par releaseLoad)
+    this.accel = 'prefer-hardware';       // décodeur matériel d'abord ; repli 'prefer-software' automatique (voir fallback)
     this.abortController = new AbortController();
     this.t0 = 0;
     if (this.preload) this.loadVideo();
@@ -96,12 +97,15 @@ class RemoteScrollmation {
     this.emit({ type: 'start', src: this.videoSrc });
 
     let received = 0;
+    let lastOutput = performance.now();   // dernier VideoFrame reçu (chien de garde)
     const mp4 = createFile();
+    const accel = this.accel;
 
     const decoder = new VideoDecoder({
-      error: e => this.emit({ type: 'error', message: e.message }),
+      error: e => { if (!stale()) this.fallback(`décodeur ${accel} : ${e.message}`); },
       output: frame => {
         if (stale()) { frame.close(); return; }
+        lastOutput = performance.now();
         // Le clone appartient au tableau ; l'original est rendu au décodeur.
         this.frames[received] = frame.clone(); live.frames++;
         frame.close();
@@ -115,13 +119,13 @@ class RemoteScrollmation {
           this.releaseLoad();                                          // démuxeur + décodeur : plus rien à en tirer
           const mb = this.frames.reduce((a, f) => a + f.allocationSize(), 0) / 1048576;
           this.log(`décodage terminé : ${this.frames.length} images en ${(performance.now() - this.t0).toFixed(0)} ms, ${mb.toFixed(0)} Mo conservés en mémoire`);
-          this.emit({ type: 'complete', frames: this.frames.length, ms: performance.now() - this.t0 });
+          this.emit({ type: 'complete', frames: this.frames.length, ms: performance.now() - this.t0, accel });
         }
         received++;
       },
     });
 
-    mp4.onReady = info => {
+    mp4.onReady = async info => {
       if (stale()) return;
       const track = info.videoTracks?.[0];
       if (!track) return this.emit({ type: 'error', message: 'piste vidéo absente' });
@@ -141,13 +145,26 @@ class RemoteScrollmation {
         codedHeight: track.video.height,
         description: new Uint8Array(stream.buffer, 8),
         optimizeForLatency: false,
-        hardwareAcceleration: 'prefer-software',
+        hardwareAcceleration: accel,
       };
       this.log('VideoDecoder.configure', { ...config, description: `${config.description.byteLength} octets (${box.type})` });
+      // Refus explicite de la config (codec / accélération) → repli logiciel sans attendre une erreur
+      const support = await VideoDecoder.isConfigSupported(config).catch(() => ({ supported: false }));
+      if (stale()) return;
+      if (!support.supported) return this.fallback(`configuration ${accel} non supportée`);
       try { decoder.configure(config); }
-      catch (e) { return this.emit({ type: 'error', message: e.message }); }
-      if (this.load) { this.load.trackId = track.id; this.load.nbSamples = track.nb_samples; }
-      this.emit({ type: 'ready', codec: track.codec, width: track.video.width, height: track.video.height, frames: track.nb_samples, duration: this.duration, fps: this.fps });
+      catch (e) { return this.fallback(`configure ${accel} : ${e.message}`); }
+      if (this.load) {
+        this.load.trackId = track.id; this.load.nbSamples = track.nb_samples;
+        // Chien de garde : des chunks en attente mais plus aucune image sortie depuis 2 s = décodeur bloqué
+        // (pool de sortie épuisé sur certains décodeurs matériels quand on conserve toutes les images)
+        this.load.watchdog = setInterval(() => {
+          if (decoder.state === 'configured' && decoder.decodeQueueSize > 0 && performance.now() - lastOutput > 2000) {
+            this.fallback(`décodeur ${accel} bloqué (${received} images sorties, ${decoder.decodeQueueSize} chunks en attente)`);
+          }
+        }, 500);
+      }
+      this.emit({ type: 'ready', codec: track.codec, width: track.video.width, height: track.video.height, frames: track.nb_samples, duration: this.duration, fps: this.fps, accel });
       mp4.setExtractionOptions(track.id);
       mp4.start();
     };
@@ -237,6 +254,21 @@ class RemoteScrollmation {
     if (this.preload) this.loadVideo();
   }
   /**
+   * Repli logiciel : on abandonne le chargement en cours (frames comprises) et on recommence en
+   * 'prefer-software' — le mp4 est en Cache API, seule la décompression est à refaire.
+   * Déjà en logiciel : c'est une vraie erreur, remontée telle quelle.
+   */
+  fallback(reason) {
+    if (this.accel === 'prefer-software') { this.loading = false; return this.emit({ type: 'error', message: reason }); }
+    this.log('repli logiciel —', reason);
+    this.accel = 'prefer-software';
+    this.emit({ type: 'fallback', reason });
+    this.reset();                         // abort → releaseLoad() (chien de garde, démuxeur, décodeur)
+    this.disposeFrames();
+    this.complete = false; this.decoded = 0;
+    this.loadVideo();
+  }
+  /**
    * Libère ce que le pipeline de chargement retient hors des VideoFrame : mp4box garde en mémoire
    * les buffers reçus et une copie des samples (≈ 2× le fichier encodé) tant que l'objet est référencé.
    */
@@ -244,7 +276,8 @@ class RemoteScrollmation {
     const l = this.load;
     if (!l) return;
     this.load = null; live.loads--;
-    const { mp4, decoder, trackId, nbSamples } = l;
+    const { mp4, decoder, trackId, nbSamples, watchdog } = l;
+    clearInterval(watchdog);
     mp4.onSamples = null; mp4.onReady = null; mp4.onError = null;
     try { mp4.stop(); } catch {}
     if (trackId) { try { mp4.releaseUsedSamples(trackId, nbSamples); } catch {} }
@@ -281,6 +314,7 @@ class RemoteScrollmation {
       duration: this.duration, fps: this.fps, codec: this.codec, width: this.width, height: this.height,
       memoryBytes: this.frames.reduce((a, f) => a + (f ? f.allocationSize() : 0), 0),
       liveFrames: live.frames, liveLoads: live.loads,   // toutes instances du worker confondues
+      accel: this.accel,
     };
   }
   emit(ev) { this.onEvent?.({ id: this.id, ...ev }); }
