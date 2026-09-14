@@ -10,6 +10,8 @@ import { initPointage } from './pointage.js';
 import { initHotspots } from './hotspots.js';
 
 const bar = document.getElementById('bar');
+/* Menu : marque la page courante */
+document.querySelector(`#menu a[data-sequence="${document.body.dataset.sequence}"]`)?.classList.add('active');
 
 /* ---------- Loader ---------- */
 
@@ -36,7 +38,7 @@ function sourcesOf(key) {
 /* État observé par lil-gui (les contrôleurs en .listen() se rafraîchissent tout seuls) */
 const ui = {
   // commandes
-  sequence: 'pano-mountain',                            // séquences disponibles : voir sequences.js
+  sequence: document.body.dataset.sequence || 'pano-mountain',   // séquence de la page (<body data-sequence>) ; voir sequences.js
   renderType: hasWebCodecs ? 'video-decoder' : 'html5-video',
   source: '',
   progress: 0,

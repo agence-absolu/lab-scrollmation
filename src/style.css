@@ -78,13 +78,20 @@ html.modal-open { overflow: hidden; }                   /* le scroll (donc la vi
 #markers .marker.other, #markers path.other { opacity: .45; }   /* autres trajectoires de la séquence */
 #markers .marker.other { background: #8ab4ff; }        /* autres trajectoires : bleu */
 #markers path.other { stroke: #8ab4ff; }
-#markers[data-frame]::before { content: attr(data-frame); position: absolute; left: 12px; top: 12px; padding: 4px 8px;
+#markers[data-frame]::before { content: attr(data-frame); position: absolute; left: 12px; top: 56px; padding: 4px 8px;   /* sous le menu */
                                background: rgba(0, 0, 0, .6); border-radius: 4px; font-size: 12px; font-variant-numeric: tabular-nums; }
 #stage:not(.pointage) #markers::before { display: none; }
 
 /* lil-gui : champs texte en lecture seule lisibles malgré .disable() */
 .lil-gui .lil-controller.lil-disabled { opacity: 1; }
 .lil-gui .lil-controller.lil-disabled input { color: var(--text-color); }
+
+/* Menu de navigation entre les pages, en haut à gauche, au-dessus de la scène */
+#menu { position: fixed; top: 12px; left: 12px; z-index: 10; display: flex; gap: 4px; padding: 4px; border-radius: 999px;
+        background: rgba(11, 11, 20, .65); backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, .12); }
+#menu a { padding: 6px 14px; border-radius: 999px; color: #ddd; text-decoration: none; font-size: 13px; transition: background .15s, color .15s; }
+#menu a:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+#menu a.active { background: #ffb340; color: #0b0b14; font-weight: 600; }
 
 /* Barre de progression */
 #bar { position: fixed; left: 0; bottom: 0; height: 3px; width: 0; background: #ffb340; }

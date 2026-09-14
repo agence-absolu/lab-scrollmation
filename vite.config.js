@@ -11,4 +11,6 @@ const base = process.env.BASE_PATH || `/${name}/`;
 export default defineConfig({
   base,
   server: { open: true },
+  // Multi-pages : une page par séquence + index (pour l'instant pano-mountain, à terme un enchaînement de séquences)
+  build: { rollupOptions: { input: { index: 'index.html', 'pano-mountain': 'pano-mountain.html', dune: 'dune.html' } } },
 });
