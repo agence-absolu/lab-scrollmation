@@ -245,7 +245,7 @@ function getModal() {
       card.innerHTML = modalHTML(m);
       card.className = `modal-card modal-${m.kind ?? 'info'}`;
       card.querySelector('.modal-close').addEventListener('click', () => modal.close());
-      modal.showModal();
+      modal.showModal();                                // animation d'ouverture : voir hotspots.css
       onModal(true);
     },
   };
